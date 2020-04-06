@@ -1,10 +1,9 @@
-import * as WebBrowser from 'expo-web-browser';
 import * as React from 'react';
 import MapView from 'react-native-maps';
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
-this.state = {
+var state = {
   markers: [{
     key: 1,
     title: 'home',
@@ -40,12 +39,12 @@ export default function HomeScreen() {
                 }}
               >
             {
-             this.state.markers.map((marker, index) => ( 
+             state.markers.map((marker, index) => ( 
               <MapView.Marker 
                 key={index} 
                 coordinate={marker.coordinates} 
                 title={marker.title}>
-                  <Image source={require('../assets/images/running_man.jpg')} style={{height: 20, width:20 }} />
+                  <Image source={require('../assets/images/running_man.jpg')} style={{ height: 20, width:20 }} />
               </MapView.Marker> ))
             }
         </MapView>
@@ -58,12 +57,6 @@ export default function HomeScreen() {
 HomeScreen.navigationOptions = {
   header: null,
 };
-
-function handleHelpPress() {
-  WebBrowser.openBrowserAsync(
-    'https://docs.expo.io/versions/latest/get-started/create-a-new-app/#making-your-first-change'
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
