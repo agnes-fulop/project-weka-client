@@ -8,7 +8,6 @@ import MapView from 'react-native-maps';
 
 export default function LinksScreen() {
 
-
   const [isLoading, setLoading] = useState(true);
   const [data, setData] = useState([]);
 
@@ -51,6 +50,7 @@ export default function LinksScreen() {
                 key={id} 
                 coordinate={marker.location} 
                 title={marker.id}>
+                  {/* <Image source={require('../assets/images/running_man.jpg')} style={{ height: 20, width:20 }} /> */}
               </MapView.Marker> ))
             }
         </MapView>
