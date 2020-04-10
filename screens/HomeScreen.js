@@ -1,36 +1,9 @@
-import * as Location from 'expo-location';
-import * as Permissions from 'expo-permissions';
 import * as React from 'react';
 import { Component } from 'react';
-import { Dimensions, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
-
-export async function getWekasAsync(latitude, longitude) {
-  console.log('Calling API');
-
-  return await fetch('https://4qs08efi8i.execute-api.ap-southeast-2.amazonaws.com/dev/v1/wekas?latitude=' 
-    + latitude
-    + '&longitude='
-    + longitude, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-api-key': '7pJgfpkrUb6gsOwAfSJFLG0OFU1OpCt7l7fYVMMg'
-    }
-  });
-};
-
-export async function getLocationAsync() {
-  let { status } = await Permissions.askAsync(Permissions.LOCATION);
-  if (status !== 'granted') {
-    this.setState({
-      errorMessage: 'Permission to access location was denied',
-    });
-  }
-
-  return await Location.getCurrentPositionAsync({});
-};
+import { getLocationAsync } from '../services/LocationService';
+import { getWekasAsync } from '../services/WekaService';
 
 export default class HomeScreen extends Component {
 
@@ -38,7 +11,7 @@ export default class HomeScreen extends Component {
     super();
     this.state = { 
       isLoading: true,
-      initialRegion: null,
+      mapRegion: null,
       wekaData: [] 
     };
   }
@@ -46,11 +19,11 @@ export default class HomeScreen extends Component {
   async componentDidMount() {
     const locationResponse = await getLocationAsync();
     const wekaResponse = await getWekasAsync(locationResponse.coords.latitude, locationResponse.coords.longitude);
-    const wekaJson = await wekaResponse.json();
+    const wekaDataJson = await wekaResponse.json();
     
     this.setState({
-       wekaData: wekaJson, 
-       initialRegion: {
+       wekaData: wekaDataJson, 
+       mapRegion: {
          latitude: locationResponse.coords.latitude,
          longitude: locationResponse.coords.longitude,
          latitudeDelta: 0.0922,
@@ -58,13 +31,12 @@ export default class HomeScreen extends Component {
        },
        isLoading: false
       });
-    console.log(this.state);
   }
 
-  _handleMapRegionChange = initialRegion => {
+  _handleMapRegionChange = mapRegion => {
     console.log('resetting initial region');
-    console.log(initialRegion);
-    this.state.initialRegion = initialRegion;
+    console.log(mapRegion);
+    this.state.mapRegion = mapRegion;
   };
 
   render() {
@@ -76,7 +48,7 @@ export default class HomeScreen extends Component {
                   showsUserLocation={true}
                   provider={MapView.PROVIDER_GOOGLE}
                   showsMyLocationButton={true}
-                  initialRegion={this.state.initialRegion}
+                  initialRegion={this.state.mapRegion}
                   onRegionChangeComplete={this._handleMapRegionChange}
                 >
               {
@@ -94,8 +66,6 @@ export default class HomeScreen extends Component {
     );
   }
 }
-
-
 
 const styles = StyleSheet.create({
   container: {
