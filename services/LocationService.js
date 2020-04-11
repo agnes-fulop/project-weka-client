@@ -10,5 +10,5 @@ export async function getLocationAsync() {
     }
   
     return await Location.getCurrentPositionAsync({});
-  };
+};
   
