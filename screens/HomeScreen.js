@@ -9,67 +9,55 @@ import Constants from 'expo-constants';
 export default class HomeScreen extends Component {
   _isMounted = false;
 
-  state = { 
+  state = {
     isLoading: true,
     mapRegion: null,
     wekaData: [{}],
     error: null,
-    hasError: false
+    hasError: false,
+    intervalId: null
   };
 
   static getDerivedStateFromError(error) {
     return { hasError: true };
   }
-  
+
+  async updateStateWithWekaData() {
+
+    const locationResponse = await getLocationAsync();
+    const currentLatitude = locationResponse.coords.latitude;
+    const currentLongitude = locationResponse.coords.longitude;
+    const deviceId = Constants.deviceId;
+
+    await sendWekaDataAsync(deviceId, currentLatitude, currentLongitude);
+    const wekaResponse = await getWekasAsync(currentLatitude, currentLongitude);
+    const wekaDataJson = await wekaResponse.json();
+
+    if (this._isMounted) {
+      this.setState({
+        wekaData: wekaDataJson,
+        mapRegion: {
+          latitude: currentLatitude,
+          longitude: currentLongitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0922
+        },
+        isLoading: false
+      });
+    }
+  }
+
   async componentDidMount() {
-    this._isMounted = true;
-
     try {
-      const locationResponse = await getLocationAsync();
-      
-      setInterval(async () => {
-        await sendWekaDataAsync(Constants.deviceId, locationResponse.coords.latitude, locationResponse.coords.longitude);
-      }, 30000);
+      this._isMounted = true;
 
-      const wekaResponse = await getWekasAsync(locationResponse.coords.latitude, locationResponse.coords.longitude);
-      const wekaDataJson = await wekaResponse.json();
+      this.updateStateWithWekaData();
 
-      console.log(wekaDataJson);
-      
-      if (this._isMounted) {
+      const intervalId = setInterval(async () => {
+        this.updateStateWithWekaData();
+      }, 30000);   
 
-        console.log(wekaDataJson);
-        this.setState({
-          wekaData: wekaDataJson, 
-          mapRegion: {
-            latitude: locationResponse.coords.latitude,
-            longitude: locationResponse.coords.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0922
-          },
-          isLoading: false,
-          error: null
-        });
-      }
-
-      setInterval(async () => {
-        const wekaResponse = await getWekasAsync(locationResponse.coords.latitude, locationResponse.coords.longitude);
-        const wekaDataJson = await wekaResponse.json();
-        
-        if (this._isMounted) {
-          this.setState({
-            wekaData: wekaDataJson, 
-            mapRegion: {
-              latitude: locationResponse.coords.latitude,
-              longitude: locationResponse.coords.longitude,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0922
-            },
-            isLoading: false,
-            error: null
-          });
-        }
-      }, 30000);
+      this.setState({ intervalId: intervalId });
 
     } catch (error) {
       if (this._isMounted) {
@@ -83,10 +71,11 @@ export default class HomeScreen extends Component {
   }
   componentWillUnmount() {
     this._isMounted = false;
+    clearInterval(this.state.intervalId);
   }
 
   handleMapRegionChange = mapRegion => {
-    if (this._isMounted){
+    if (this._isMounted) {
       this.state.mapRegion = mapRegion;
     }
   };
@@ -94,33 +83,33 @@ export default class HomeScreen extends Component {
   render() {
     if (this.state.hasError) {
       return (
-         <Text style={styles.errorText}>Oops. Something went wrong.</Text>
+        <Text style={styles.errorText}>Oops. Something went wrong.</Text>
       );
     }
 
     return (
-        <View style={styles.container}>
-          { this.state.isLoading ? <ActivityIndicator/> : (
-            <MapView
-                    style={styles.mapStyle}
-                    showsUserLocation={true}
-                    provider={MapView.PROVIDER_GOOGLE}
-                    showsMyLocationButton={true}
-                    initialRegion={this.state.mapRegion}
-                    onRegionChangeComplete={this.handleMapRegionChange}
-                  >
-                {
-                this.state.wekaData.map((marker, id) => ( 
-                  <MapView.Marker 
-                    key={id} 
-                    coordinate={marker.location} 
-                    title={marker.id}>
-                      {/* <Image source={require('../assets/images/running_man.jpg')} style={{ height: 20, width:20 }} /> */}
-                  </MapView.Marker> ))
-                }
-            </MapView>
-          )}
-        </View>
+      <View style={styles.container}>
+        {this.state.isLoading ? <ActivityIndicator /> : (
+          <MapView
+            style={styles.mapStyle}
+            showsUserLocation={true}
+            provider={MapView.PROVIDER_GOOGLE}
+            showsMyLocationButton={true}
+            initialRegion={this.state.mapRegion}
+            onRegionChangeComplete={this.handleMapRegionChange}
+          >
+            {
+              this.state.wekaData.map((marker, id) => (
+                <MapView.Marker
+                  key={id}
+                  coordinate={marker.location}
+                  title={marker.id}>
+                  {/* <Image source={require('../assets/images/running_man.jpg')} style={{ height: 20, width:20 }} /> */}
+                </MapView.Marker>))
+            }
+          </MapView>
+        )}
+      </View>
     );
   }
 }

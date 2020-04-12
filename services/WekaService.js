@@ -1,5 +1,5 @@
 export async function getWekasAsync(latitude, longitude) {
-    console.log('Getting weka data');
+    console.log('Getting weka data from API');
   
     return await fetch('https://4qs08efi8i.execute-api.ap-southeast-2.amazonaws.com/dev/v1/wekas?latitude=' 
       + latitude
@@ -35,7 +35,7 @@ export async function getWekasAsync(latitude, longitude) {
   };
 
   export async function sendWekaDataAsync(deviceId, lat, long) {
-    console.log('Posting my current location');
+    console.log('Posting my current location for id: ' + deviceId);
   
     return await fetch('https://4qs08efi8i.execute-api.ap-southeast-2.amazonaws.com/dev/v1/wekas', {
       method: 'POST',
