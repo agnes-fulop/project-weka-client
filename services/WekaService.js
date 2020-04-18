@@ -1,11 +1,11 @@
-import { ENV, getEnvVariables } from "../constants/Environment";
+import { getEnvVariables } from "../constants/Environment";
 
 const envData = getEnvVariables();
 
-export async function getWekasAsync(latitude, longitude) {
+export async function getWekasAsync(latitude, longitude, latitudeDelta, longitudeDelta) {
     console.log('Getting weka data from API');
   
-    return await fetch(`${envData.apiUrl}?latitude=${latitude}&longitude=${longitude}`, {
+    return await fetch(`${envData.apiUrl}?latitude=${latitude}&longitude=${longitude}&latitudeDelta=${latitudeDelta}&longitudeDelta=${longitudeDelta}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -31,6 +31,18 @@ export async function sendWekaDataAsync(deviceId, latitude, longitude) {
             longitude: longitude
         }
       })
+    });
+  };
+
+export async function deleteWekaDataAsync(id) {
+    console.log(`Deleting weka data for Id: ${id}`);
+  
+    return await fetch(`${envData.apiUrl}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        'x-api-key': envData.apiKey
+      }
     });
   };
   

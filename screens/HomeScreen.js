@@ -1,18 +1,20 @@
 import * as React from 'react';
 import { Component } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, View, Text } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, View, Text, AppState } from 'react-native';
 import MapView from 'react-native-maps';
-import { getLocationAsync } from '../services/LocationService';
-import { getWekasAsync, sendWekaDataAsync } from '../services/WekaService';
+import { getLocationAsync, askLocationPermissionAsync } from '../services/LocationService';
+import { getWekasAsync, sendWekaDataAsync, deleteWekaDataAsync } from '../services/WekaService';
 import { getDeviceUniqueId } from '../services/DeviceService';
 
 export default class HomeScreen extends Component {
   _isMounted = false;
 
   state = {
+    appState: AppState.currentState,
+    deviceId: null,
     isLoading: true,
     mapRegion: null,
-    wekaData: [{}],
+    wekaData: [],
     error: null,
     hasError: false,
     intervalId: null
@@ -26,16 +28,27 @@ export default class HomeScreen extends Component {
 
   async updateStateWithWekaData() {
 
-    //get only when phone is unlocked
+    // get only when phone is unlocked
     // post should be sent all the time in the background
 
     const locationResponse = await getLocationAsync();
     const currentLatitude = locationResponse.coords.latitude;
     const currentLongitude = locationResponse.coords.longitude;
+    const currentLatitudeDelta = 0.0922;
+    const currentLongitudeDelta = 0.0922;
     const deviceId = getDeviceUniqueId();
 
+    console.log('current location');
+    console.log(locationResponse);
+
     await sendWekaDataAsync(deviceId, currentLatitude, currentLongitude);
-    const wekaResponse = await getWekasAsync(currentLatitude, currentLongitude);
+
+    const wekaResponse = await getWekasAsync(
+      currentLatitude, 
+      currentLongitude, 
+      currentLatitudeDelta,
+      currentLongitudeDelta);
+
     const wekaDataJson = await wekaResponse.json();
 
     if (this._isMounted) {
@@ -44,9 +57,10 @@ export default class HomeScreen extends Component {
         mapRegion: {
           latitude: currentLatitude,
           longitude: currentLongitude,
-          latitudeDelta: 0.0922, // check if this has a default
-          longitudeDelta: 0.0922
+          latitudeDelta: currentLatitudeDelta,
+          longitudeDelta: currentLongitudeDelta
         },
+        deviceId: deviceId,
         isLoading: false
       });
     }
@@ -55,6 +69,10 @@ export default class HomeScreen extends Component {
   async componentDidMount() {
     try {
       this._isMounted = true;
+
+      AppState.addEventListener('change', this.handleAppStateChange);
+
+      await askLocationPermissionAsync();
 
       this.updateStateWithWekaData();
 
@@ -78,15 +96,48 @@ export default class HomeScreen extends Component {
 
     this._isMounted = false;
     clearInterval(this.state.intervalId);
+    AppState.removeEventListener('change', this.handleAppStateChange);
 
-    // delete data for current weka
+    deleteWekaDataAsync(this.state.deviceId);
   }
 
-  handleMapRegionChange = mapRegion => {
+  handleAppStateChange = async nextAppState => {
+    if (this.state.appState.match(/inactive|background/) && nextAppState === 'active') {
+      console.log('App has come to the foreground!');
+    }
+
+    const wekaResponse = await getWekasAsync(
+      this.state.mapRegion.latitude, 
+      this.state.mapRegion.longitude,
+      this.state.mapRegion.latitudeDelta,
+      this.state.mapRegion.longitudeDelta);
+
+    const wekaDataJson = await wekaResponse.json();
+
     if (this._isMounted) {
-      // send location of the middle of the screen + radius OR delta
-      // get new weka data
-      this.state.mapRegion = mapRegion;
+      this.setState({
+        wekaData: wekaDataJson,
+        appState: nextAppState
+      });
+    }
+  };
+
+  handleMapRegionChange = async mapRegion => {
+    if (this._isMounted) {
+      console.log('Region has changed');
+
+      const wekaResponse = await getWekasAsync(mapRegion.latitude, mapRegion.longitude, mapRegion.latitudeDelta, mapRegion.longitudeDelta);
+      const wekaDataJson = await wekaResponse.json();
+
+      console.log('updated data for new location');
+      console.log(wekaDataJson);
+      console.log(mapRegion);
+  
+      this.setState({
+        wekaData: wekaDataJson,
+        mapRegion: mapRegion
+      });
+      
     }
   };
 
