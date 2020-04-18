@@ -4,7 +4,7 @@ import { ActivityIndicator, Dimensions, StyleSheet, View, Text } from 'react-nat
 import MapView from 'react-native-maps';
 import { getLocationAsync } from '../services/LocationService';
 import { getWekasAsync, sendWekaDataAsync } from '../services/WekaService';
-import Constants from 'expo-constants';
+import { getDeviceUniqueId } from '../services/DeviceService';
 
 export default class HomeScreen extends Component {
   _isMounted = false;
@@ -22,12 +22,17 @@ export default class HomeScreen extends Component {
     return { hasError: true };
   }
 
+  // TODO: delete if deliberate location sharing is on
+
   async updateStateWithWekaData() {
+
+    //get only when phone is unlocked
+    // post should be sent all the time in the background
 
     const locationResponse = await getLocationAsync();
     const currentLatitude = locationResponse.coords.latitude;
     const currentLongitude = locationResponse.coords.longitude;
-    const deviceId = Constants.deviceId;
+    const deviceId = getDeviceUniqueId();
 
     await sendWekaDataAsync(deviceId, currentLatitude, currentLongitude);
     const wekaResponse = await getWekasAsync(currentLatitude, currentLongitude);
@@ -39,7 +44,7 @@ export default class HomeScreen extends Component {
         mapRegion: {
           latitude: currentLatitude,
           longitude: currentLongitude,
-          latitudeDelta: 0.0922,
+          latitudeDelta: 0.0922, // check if this has a default
           longitudeDelta: 0.0922
         },
         isLoading: false
@@ -70,12 +75,17 @@ export default class HomeScreen extends Component {
     }
   }
   componentWillUnmount() {
+
     this._isMounted = false;
     clearInterval(this.state.intervalId);
+
+    // delete data for current weka
   }
 
   handleMapRegionChange = mapRegion => {
     if (this._isMounted) {
+      // send location of the middle of the screen + radius OR delta
+      // get new weka data
       this.state.mapRegion = mapRegion;
     }
   };
@@ -103,8 +113,9 @@ export default class HomeScreen extends Component {
                 <MapView.Marker
                   key={id}
                   coordinate={marker.location}
-                  title={marker.id}>
+                  title={marker.id}> 
                   {/* <Image source={require('../assets/images/running_man.jpg')} style={{ height: 20, width:20 }} /> */}
+                  {/* TODO: generate random names for markers */}
                 </MapView.Marker>))
             }
           </MapView>
