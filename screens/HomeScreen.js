@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Component } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, View, Text, AppState } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, View, Text, AppState, Switch } from 'react-native';
 import MapView from 'react-native-maps';
 import { getLocationAsync, askLocationPermissionAsync } from '../services/LocationService';
 import { getWekasAsync, sendWekaDataAsync, deleteWekaDataAsync } from '../services/WekaService';
@@ -17,7 +17,8 @@ export default class HomeScreen extends Component {
     wekaData: [],
     error: null,
     hasError: false,
-    intervalId: null
+    intervalId: null,
+    shareLocation: false
   };
 
   static getDerivedStateFromError(error) {
@@ -32,16 +33,18 @@ export default class HomeScreen extends Component {
     // post should be sent all the time in the background
 
     const locationResponse = await getLocationAsync();
+    console.log('new location');
+    console.log(locationResponse);
+
+
     const currentLatitude = locationResponse.coords.latitude;
     const currentLongitude = locationResponse.coords.longitude;
     const currentLatitudeDelta = 0.0922;
     const currentLongitudeDelta = 0.0922;
     const deviceId = getDeviceUniqueId();
 
-    console.log('current location');
-    console.log(locationResponse);
-
     await sendWekaDataAsync(deviceId, currentLatitude, currentLongitude);
+    // hook to mapview.animateToRegion to keep tracking user location in center
 
     const wekaResponse = await getWekasAsync(
       currentLatitude, 
@@ -77,6 +80,7 @@ export default class HomeScreen extends Component {
       this.updateStateWithWekaData();
 
       const intervalId = setInterval(async () => {
+        console.log('executing!');
         this.updateStateWithWekaData();
       }, 30000);   
 
@@ -103,22 +107,24 @@ export default class HomeScreen extends Component {
 
   handleAppStateChange = async nextAppState => {
     if (this.state.appState.match(/inactive|background/) && nextAppState === 'active') {
-      console.log('App has come to the foreground!');
+      const wekaResponse = await getWekasAsync(
+        this.state.mapRegion.latitude, 
+        this.state.mapRegion.longitude,
+        this.state.mapRegion.latitudeDelta,
+        this.state.mapRegion.longitudeDelta);
+  
+      const wekaDataJson = await wekaResponse.json();
+  
+      if (this._isMounted) {
+        this.setState({
+          wekaData: wekaDataJson,
+          appState: nextAppState
+        });
+      }
     }
-
-    const wekaResponse = await getWekasAsync(
-      this.state.mapRegion.latitude, 
-      this.state.mapRegion.longitude,
-      this.state.mapRegion.latitudeDelta,
-      this.state.mapRegion.longitudeDelta);
-
-    const wekaDataJson = await wekaResponse.json();
-
-    if (this._isMounted) {
-      this.setState({
-        wekaData: wekaDataJson,
-        appState: nextAppState
-      });
+    
+    if (nextAppState === 'background') {
+      deleteWekaDataAsync(this.state.deviceId);
     }
   };
 
@@ -129,10 +135,6 @@ export default class HomeScreen extends Component {
       const wekaResponse = await getWekasAsync(mapRegion.latitude, mapRegion.longitude, mapRegion.latitudeDelta, mapRegion.longitudeDelta);
       const wekaDataJson = await wekaResponse.json();
 
-      console.log('updated data for new location');
-      console.log(wekaDataJson);
-      console.log(mapRegion);
-  
       this.setState({
         wekaData: wekaDataJson,
         mapRegion: mapRegion
@@ -140,6 +142,14 @@ export default class HomeScreen extends Component {
       
     }
   };
+
+  handleLocationShareChange = async newValue => {
+    if (!newValue) {
+      await deleteWekaDataAsync(this.state.deviceId);
+    }
+    
+    this.setState({ shareLocation: newValue });
+  }
 
   render() {
     if (this.state.hasError) {
@@ -150,11 +160,19 @@ export default class HomeScreen extends Component {
 
     return (
       <View style={styles.container}>
+
+        <View style={styles.locationSharing}>
+          <Text style={styles.locationSharingLabel}>Location sharing: </Text>
+          <Switch
+            value={this.state.shareLocation}
+            onValueChange={this.handleLocationShareChange}
+          />
+        </View>
+
         {this.state.isLoading ? <ActivityIndicator /> : (
           <MapView
             style={styles.mapStyle}
             showsUserLocation={true}
-            provider={MapView.PROVIDER_GOOGLE}
             showsMyLocationButton={true}
             initialRegion={this.state.mapRegion}
             onRegionChangeComplete={this.handleMapRegionChange}
@@ -178,22 +196,11 @@ export default class HomeScreen extends Component {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#fafafa',
-  },
-  contentContainer: {
-    paddingTop: 15,
+    backgroundColor: '#fafafa'
   },
   mapStyle: {
     width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
-  },
-  paragraph: {
-    margin: 24,
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#34495e',
+    height: Dimensions.get('window').height
   },
   errorText: {
     margin: 24,
@@ -201,5 +208,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     color: 'red'
+  },
+  locationSharing: {
+    paddingTop: 10,
+    paddingBottom: 10,
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  locationSharingLabel: {
+    fontSize: 14,
+    fontWeight: 'bold'
   }
 });
