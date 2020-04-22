@@ -12,20 +12,18 @@ export default class HomeScreen extends Component {
   state = {
     appState: AppState.currentState,
     deviceId: null,
-    isLoading: true,
-    mapRegion: null,
-    wekaData: [],
     error: null,
     hasError: false,
+    isLoading: true,
     intervalId: null,
-    shareLocation: false
+    mapRegion: null,
+    shareLocation: false,
+    wekaData: []
   };
 
   static getDerivedStateFromError(error) {
     return { hasError: true };
   }
-
-  // TODO: delete if deliberate location sharing is on
 
   async updateStateWithWekaData() {
 
@@ -33,9 +31,6 @@ export default class HomeScreen extends Component {
     // post should be sent all the time in the background
 
     const locationResponse = await getLocationAsync();
-    console.log('new location');
-    console.log(locationResponse);
-
 
     const currentLatitude = locationResponse.coords.latitude;
     const currentLongitude = locationResponse.coords.longitude;
@@ -69,86 +64,95 @@ export default class HomeScreen extends Component {
     }
   }
 
+  deleteWekaDataAndUpdateState = () => {
+    deleteWekaDataAsync(this.state.deviceId || getDeviceUniqueId());
+
+    if (this._isMounted) {
+      this.setState({ wekaData: [] });
+    }
+  }
+
   async componentDidMount() {
     try {
       this._isMounted = true;
-
       AppState.addEventListener('change', this.handleAppStateChange);
-
-      await askLocationPermissionAsync();
-
-      this.updateStateWithWekaData();
-
-      const intervalId = setInterval(async () => {
-        console.log('executing!');
-        this.updateStateWithWekaData();
-      }, 30000);   
-
-      this.setState({ intervalId: intervalId });
 
     } catch (error) {
       if (this._isMounted) {
-        this.setState({
-          error: error,
-          hasError: true
-        })
+        this.setState({ error: error, hasError: true })
       }
       console.log(this.state.error);
     }
   }
-  componentWillUnmount() {
 
+  componentWillUnmount() {
     this._isMounted = false;
+
     clearInterval(this.state.intervalId);
+
     AppState.removeEventListener('change', this.handleAppStateChange);
 
     deleteWekaDataAsync(this.state.deviceId);
   }
 
   handleAppStateChange = async nextAppState => {
-    if (this.state.appState.match(/inactive|background/) && nextAppState === 'active') {
-      const wekaResponse = await getWekasAsync(
-        this.state.mapRegion.latitude, 
-        this.state.mapRegion.longitude,
-        this.state.mapRegion.latitudeDelta,
-        this.state.mapRegion.longitudeDelta);
-  
-      const wekaDataJson = await wekaResponse.json();
-  
-      if (this._isMounted) {
-        this.setState({
-          wekaData: wekaDataJson,
-          appState: nextAppState
-        });
+    if (nextAppState === 'active') {      
+      if (this.state.shareLocation) {
+        this.updateStateWithWekaData();
       }
-    }
-    
-    if (nextAppState === 'background') {
-      deleteWekaDataAsync(this.state.deviceId);
+
+      if (this._isMounted) {
+        this.setState({ appState: nextAppState });
+      }
+    } else if (nextAppState === 'background') {
+      this.deleteWekaDataAndUpdateState();
+
+      // TODO: if location sharing is on, post location in the background instead
     }
   };
 
   handleMapRegionChange = async mapRegion => {
+    console.log('Region has changed');
+
+    if (!this.state.shareLocation){
+      return;
+    }
+
+    const wekaResponse = await getWekasAsync(
+      mapRegion.latitude, 
+      mapRegion.longitude, 
+      mapRegion.latitudeDelta, 
+      mapRegion.longitudeDelta);
+
+    const wekaDataJson = await wekaResponse.json();
+
     if (this._isMounted) {
-      console.log('Region has changed');
-
-      const wekaResponse = await getWekasAsync(mapRegion.latitude, mapRegion.longitude, mapRegion.latitudeDelta, mapRegion.longitudeDelta);
-      const wekaDataJson = await wekaResponse.json();
-
-      this.setState({
-        wekaData: wekaDataJson,
-        mapRegion: mapRegion
-      });
-      
+      this.setState({ wekaData: wekaDataJson, mapRegion: mapRegion });
     }
   };
 
-  handleLocationShareChange = async newValue => {
-    if (!newValue) {
-      await deleteWekaDataAsync(this.state.deviceId);
+  handleLocationShareChange = async isLocationSharingActive => {
+    if (!isLocationSharingActive) {
+      this.deleteWekaDataAndUpdateState();
+
+    } else {
+      await askLocationPermissionAsync();
+      this.updateStateWithWekaData();
+
+      // const intervalId = setInterval(async () => {
+      //   if (this.state.shareLocation){
+      //     this.updateStateWithWekaData();
+      //   }
+      // }, 30000);   
+
+      // if (this._isMounted) {
+      //   this.setState({ intervalId: intervalId, shareLocation: true });
+      // }
     }
-    
-    this.setState({ shareLocation: newValue });
+
+    if (this._isMounted) {
+      this.setState({ shareLocation: isLocationSharingActive });
+    }
   }
 
   render() {
@@ -174,6 +178,7 @@ export default class HomeScreen extends Component {
             style={styles.mapStyle}
             showsUserLocation={true}
             showsMyLocationButton={true}
+            provider={MapView.PROVIDER_GOOGLE}
             initialRegion={this.state.mapRegion}
             onRegionChangeComplete={this.handleMapRegionChange}
           >
