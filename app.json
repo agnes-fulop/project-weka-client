@@ -23,7 +23,12 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
-    }
+      "supportsTablet": true,
+      "bundleIdentifier": "io.weka.app"
+    },
+    "android": {
+      "package": "io.weka.app"
+    },
+    "entryPoint": "node_modules/expo/AppEntry.js"
   }
 }
